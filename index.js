@@ -1,5 +1,6 @@
 const regl = require('regl')({
   pixelRatio: 1,
+  extensions: ['OES_texture_float', 'OES_texture_half_float'],
   onDone: (err) => {
     if (err) {
       document.body.innerHTML = `
@@ -11,6 +12,8 @@ WebGL not supported
 })
 const palettesCSS = require('./palettes.json')
 const reglAnalyser = require('regl-audio/analyser')
+
+const gamma = 2.2
 
 const renderer = require('./renderer')(regl)
 
@@ -91,14 +94,23 @@ function setup (analyser) {
     randomizePalette()
     let curPalette = nextPalette.slice()
 
+    let paletteCounter = 25
+
     const basicSetup = regl({
       framebuffer: ({tick}) => postFBO[tick % 2],
 
       context: {
-        colors: ({tick}) => {
-          if (tick % 100 === 0) {
+        colors: ({beats}) => {
+          paletteCounter -=
+            Math.sqrt(beats[0]) +
+            Math.sqrt(beats[1]) +
+            Math.sqrt(beats[2]) +
+            Math.sqrt(beats[3]) - 0.125
+          if (paletteCounter < 0 || paletteCounter > 50) {
+            paletteCounter = 25
             randomizePalette()
           }
+
           for (let i = 0; i < 5; ++i) {
             for (let j = 0; j < 3; ++j) {
               curPalette[i][j] = 0.25 * curPalette[i][j] + 0.75 * nextPalette[i][j]
@@ -109,7 +121,7 @@ function setup (analyser) {
       },
 
       vert: `
-      precision mediump float;
+      precision highp float;
       attribute vec2 position;
       varying vec2 uv;
       void main () {
@@ -126,7 +138,16 @@ function setup (analyser) {
         'colors[1]': regl.context('colors[1]'),
         'colors[2]': regl.context('colors[2]'),
         'colors[3]': regl.context('colors[3]'),
-        'colors[4]': regl.context('colors[4]')
+        'colors[4]': regl.context('colors[4]'),
+        noiseTexture: regl.texture({
+          shape: [64, 64, 4],
+          data: (Array(64 * 64 * 4)).fill().map(() =>
+            255.0 * Math.random()),
+          min: 'linear mipmap linear',
+          mag: 'linear',
+          wrap: 'repeat'
+        }),
+        gamma: gamma
       },
 
       attributes: {

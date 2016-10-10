@@ -1,0 +1,32 @@
+{
+  "name": "vj2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "browserify": {
+    "transform": [
+      "glslify",
+      "es2020"
+    ]
+  },
+  "dependencies": {
+    "budo": "^9.2.1",
+    "es2020": "^1.1.9",
+    "gl-mat3": "^1.0.0",
+    "gl-mat4": "^1.1.4",
+    "gl-vec2": "^1.0.0",
+    "gl-vec3": "^1.0.3",
+    "gl-vec4": "^1.0.1",
+    "glsl-curl-noise": "0.0.4",
+    "glsl-fast-gaussian-blur": "^1.0.2",
+    "glsl-noise": "0.0.0",
+    "glslify": "^6.0.0",
+    "regl": "^1.2.1",
+    "regl-audio": "^1.0.0"
+  }
+}
