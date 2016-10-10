@@ -36,23 +36,28 @@ const getUserMedia = (navigator.getUserMedia ||
 const audioContext = new (
   window.AudioContext || window.webkitAudioContext)()
 
-setupMic()
+getUserMedia.call(
+  navigator,
+  {
+    video: true,
+    audio: true
+  },
+  function (stream) {
+    const analyser = audioContext.createAnalyser()
+    audioContext.createMediaStreamSource(stream).connect(analyser)
 
-function setupMic () {
-  getUserMedia.call(
-    navigator,
-    { audio: true },
-    function (stream) {
-      const analyser = audioContext.createAnalyser()
-      audioContext.createMediaStreamSource(stream).connect(analyser)
-      setup(analyser)
-    },
-    function () {
-      window.alert('microphone input not supported')
+    const video = document.createElement('video')
+    video.src = window.URL.createObjectURL(stream)
+    video.addEventListener('canplay', function (e) {
+      setup(analyser, video)
     })
-}
+    video.play()
+  },
+  function () {
+    window.alert('microphone input not supported')
+  })
 
-function setup (analyser) {
+function setup (analyser, video) {
   const microphone = reglAnalyser({
     regl,
     analyser,
@@ -61,6 +66,8 @@ function setup (analyser) {
     sampleRate: audioContext.sampleRate
   })
   setTimeout(function () {
+    const videoTexture = regl.texture(video)
+
     const postFBO = [
       regl.framebuffer({
         color: regl.texture({
@@ -147,7 +154,8 @@ function setup (analyser) {
           mag: 'linear',
           wrap: 'repeat'
         }),
-        gamma: gamma
+        gamma: gamma,
+        video: videoTexture
       },
 
       attributes: {
@@ -190,6 +198,10 @@ function setup (analyser) {
           setupPostProcess(renderer.postprocess)
         })
       })
+
+      if (tick % 2) {
+        videoTexture.subimage(video)
+      }
     })
   }, 0)
 }

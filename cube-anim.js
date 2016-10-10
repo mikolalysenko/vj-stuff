@@ -279,11 +279,94 @@ module.exports = function ({
     }
   }
 
+  function shuffleAnim () {
+    const polys = polyominoes()
+    const positions = polys.map(() => [0, 0, 0])
+
+    function applyPos () {
+      const e = []
+      polys.forEach((poly, n) => {
+        const p = positions[n]
+        poly.forEach(([i, j, k]) => {
+          e.push(i, j, k,
+            i + p[0],
+            j + p[1],
+            k + p[2])
+        })
+      })
+      events.push(e)
+    }
+
+    applyPos()
+
+    for (let i = 0; i < 40; ++i) {
+      positions.forEach((pos) => {
+        pos[(3 * Math.random()) | 0] += ((Math.random() - 0.5) * 10) | 0
+      })
+      applyPos()
+    }
+
+    for (let i = 0; i < 3; ++i) {
+      positions.forEach((pos) => {
+        const d = (Math.random() * 3) | 0
+        pos[d] = 0
+      })
+      applyPos()
+    }
+
+    positions.forEach((pos) => pos[0] = pos[1] = pos[2] = 0)
+    applyPos()
+  }
+
+  function screenAnim () {
+    const e = []
+    forEach((i, j, k) => {
+      e.push(
+        i, j, k,
+        i + 4 * (k % 2), j + 4 * Math.floor(k / 2), 0)
+    })
+    events.push(e, [], [], [], [])
+  }
+
+  function octAnim () {
+    let e = []
+    forEach((i, j, k) => {
+      const ei = Math.floor(i / 2)
+      const ej = Math.floor(j / 2)
+      const ek = Math.floor(k / 2)
+
+      e.push(i, j, k,
+        4 * ei + (i % 2) - 2,
+        4 * ej + (j % 2) - 2,
+        4 * ek + (k % 2) - 2)
+    })
+    events.push(e)
+    for (let i = 0; i < 10; ++i) {
+      events.push([])
+    }
+    e = []
+    forEach((i, j, k) => {
+      e.push(i, j, k,
+        8 * i - 8,
+        8 * j - 8,
+        8 * k - 8)
+    })
+    events.push(e)
+    for (let i = 0; i < 10; ++i) {
+      events.push([])
+    }
+  }
+
   function anim () {
     events.length = 0
     eventPtr = 0
-
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.25) {
+      octAnim()
+    } else if (Math.random() < 0.1) {
+      screenAnim()
+    } else if (Math.random() < 0.25) {
+      shuffleAnim()
+    } else if (Math.random() < 0.5) {
       polyOut()
       events.push([], [], [], [], [])
       while (Math.random() < 0.9) {
@@ -292,7 +375,7 @@ module.exports = function ({
       polyIn()
     } else if (Math.random() < 0.5) {
       sliceAnim()
-      while (Math.random() < 0.8) {
+      while (Math.random() < 0.6) {
         sliceAnim()
       }
     } else if (Math.random() < 0.5) {

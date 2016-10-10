@@ -1,5 +1,6 @@
 const positions = []
 const normals = []
+const uvs = []
 
 for (let d = 0; d < 3; ++d) {
   for (let s = -1; s <= 1; s += 2) {
@@ -26,7 +27,6 @@ for (let d = 0; d < 3; ++d) {
       points[1],
       points[2],
       points[3])
-
     const normal = [0, 0, 0]
     normal[d] = s
     normals.push(
@@ -36,10 +36,18 @@ for (let d = 0; d < 3; ++d) {
       normal,
       normal,
       normal)
+    uvs.push(
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [0, 1],
+      [1, 0],
+      [1, 1])
   }
 }
 
 module.exports = {
   positions,
-  normals
+  normals,
+  uvs
 }

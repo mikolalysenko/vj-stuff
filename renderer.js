@@ -7,22 +7,29 @@ const GRID_SIZE = 4
 
 module.exports = function (regl) {
   const environmentMap = `
+  vec3 ground () {
+    return mix(colors[0], colors[4], beats[0] + beats[1] + beats[5]);
+  }
+
   vec3 envMap (vec3 dir) {
     float t = 1.0 / max(0.0001, abs(dir.y));
     vec3 hit = t * dir;
 
-    vec4 noise = texture2D(noiseTexture, 0.05 * hit.xz + vec2(0.05 * time, 0));
+    vec4 noise = texture2D(
+      noiseTexture, 0.05 * hit.xz + vec2(0.05 * time, 0));
+
+    vec4 f = texture2D(freq, 0.005 * vec2(t));
 
     return mix(
-      mix(colors[1], colors[2], noise.r),
-      colors[0],
+      mix(colors[2], colors[4], noise.r + f.r),
+      ground(),
       1.0 / (1.0 + exp(12.0 * dir.y)));
   }
 
   vec3 roughEnvMap (vec3 dir) {
     return mix(
-      0.5 * (colors[1] + colors[2]),
-      colors[0],
+      0.5 * (colors[2] + colors[4]),
+      ground(),
       1.0 / (1.0 + exp(10.0 * dir.y)));
   }
   `
@@ -171,8 +178,11 @@ module.exports = function (regl) {
   const drawCubeArray = regl({
     frag: `
     precision mediump float;
+    uniform sampler2D video;
     varying vec3 fNormal, fEye;
+    varying vec2 fUV;
     varying float fAO;
+    uniform vec2 resolution;
 
     ${commonShader}
 
@@ -181,9 +191,20 @@ module.exports = function (regl) {
       vec3 V = normalize(fEye);
       vec3 R = reflect(N, V);
 
+      /*
+      vec4 videoColor = texture2D(video,
+        1.5 * (vec2(gl_FragCoord.x, resolution.y - gl_FragCoord.y) / resolution - 0.5) + 0.5);
+      */
+      vec4 videoColor = texture2D(video, fUV);
+      float luminance =
+        max(videoColor.b, max(videoColor.r, videoColor.g));
+
+      vec3 vcolor =
+        mix(colors[1], colors[3], pow(luminance, 1.0 / 8.0));
+
       vec3 spec = envMap(R);
       vec3 diffuse =
-        fAO * max(vec3(1.0), roughEnvMap(R) + 0.5) * colors[3];
+        fAO * max(vec3(1.0), roughEnvMap(R) + 0.5) * vcolor;
 
       float f0 = 0.95 * pow(1.0 - dot(V, N), 5.0);
       gl_FragColor = vec4(mix(diffuse, spec, f0), 1);
@@ -193,11 +214,13 @@ module.exports = function (regl) {
     vert: `
     precision mediump float;
     attribute vec3 position, normal;
-    attribute vec2 id;
+    attribute vec2 id, uv;
     uniform sampler2D displacements;
-    uniform vec3 eye;
-    uniform mat4 projection, view;
+
+    ${commonShader}
+
     varying vec3 fNormal, fEye;
+    varying vec2 fUV;
     varying float fAO;
 
     float ambientOcclusion (vec3 p, vec3 n) {
@@ -217,11 +240,17 @@ module.exports = function (regl) {
     }
 
     void main () {
-      vec3 P = position + texture2D(displacements, id).xyz;
+      vec3 disp = texture2D(displacements, id).xyz;
+      vec3 P = position * (1.0 + beats[0]) + disp;
       fNormal = normal;
       fEye = eye - P;
-      gl_Position = projection * view * vec4(P, 1);
+      vec4 hgPos = projection * view * vec4(P, 1);
+      gl_Position = hgPos;
       fAO = ambientOcclusion(P, normal);
+
+      vec3 cameraPos = (hgPos.xyz / hgPos.w) -
+        vec3(-0.25, -0.1, -0.25);
+      fUV = 0.5 * (vec2(cameraPos.x, -cameraPos.y) + 1.0);
     }
     `,
 
@@ -229,6 +258,7 @@ module.exports = function (regl) {
       const positions = []
       const normals = []
       const ids = []
+      const uvs = []
       for (let i = 0; i < GRID_SIZE; ++i) {
         for (let j = 0; j < GRID_SIZE; ++j) {
           for (let k = 0; k < GRID_SIZE; ++k) {
@@ -243,6 +273,20 @@ module.exports = function (regl) {
                 0.5 * x[2] - GRID_SIZE / 2)
               normals.push(cube.normals[p])
               ids.push([u, v])
+
+              if (cube.normals[p][0]) {
+                uvs.push(
+                  (0.5 * (1 + x[2]) + k) / GRID_SIZE,
+                  1.0 - (0.5 * (1 + x[1]) + j) / GRID_SIZE)
+              } else if (cube.normals[p][2]) {
+                uvs.push(
+                  (0.5 * (1 + x[0]) + i) / GRID_SIZE,
+                  1.0 - (0.5 * (1 + x[1]) + j) / GRID_SIZE)
+              } else {
+                uvs.push(
+                  (0.5 * (1 + x[0]) + i) / GRID_SIZE,
+                  (0.5 * (1 + x[2]) + j) / GRID_SIZE)
+              }
             }
           }
         }
@@ -250,7 +294,8 @@ module.exports = function (regl) {
       return {
         position: positions,
         normal: normals,
-        id: ids
+        id: ids,
+        uv: uvs
       }
     })(),
 
@@ -259,7 +304,9 @@ module.exports = function (regl) {
     },
 
     uniforms: {
-      displacements: displacementTexture
+      displacements: displacementTexture,
+      resolution: ({viewportWidth, viewportHeight}) =>
+        [viewportWidth, viewportHeight]
     },
 
     count: cube.positions.length * GRID_SIZE * GRID_SIZE * GRID_SIZE
@@ -346,24 +393,37 @@ module.exports = function (regl) {
   init()
 
   let angle = 0.0
-  let animCounter = 0.1
-
+  const cameraTarget = [0, 0, 0]
+  const cameraTargetGoal = [0, 0, 0]
   function forward (context) {
-    angle += Math.pow(context.beats[0], 4.0) + 0.001
+    angle += 0.01
 
     const radius = 4.0 + 2.0 * GRID_SIZE
 
+    if (context.beats[3] > 0.001) {
+      for (let i = 0; i < 3; ++i) {
+        cameraTargetGoal[i] += 2.0 * (Math.random() - 0.5)
+        cameraTargetGoal[i] *= 0.95
+      }
+    }
+
+    for (let i = 0; i < 3; ++i) {
+      cameraTarget[i] = 0.9 * cameraTarget[i] + 0.1 * cameraTargetGoal[i]
+    }
+
     setupCamera(
-      [radius * Math.cos(angle), 2.5, radius * Math.sin(angle)],
-      [0, 0, 0], () => {
+      [
+        radius * Math.cos(angle),
+        2.5,
+        radius * Math.sin(angle)
+      ],
+      cameraTarget, () => {
         regl.clear({depth: 1})
         drawBackground()
         scene(context)
       })
-    animCounter -= 4.0 * Math.sqrt(context.beats[0])
-    if (animCounter < 0) {
+    if (context.beats[3] > 0) {
       next()
-      animCounter = 0.1
     }
     updateDisplacements(0.1, 0.4)
   }
@@ -372,11 +432,19 @@ module.exports = function (regl) {
     frag: glslify`
     precision mediump float;
     varying vec2 uv;
+
     ${commonShader}
+
     uniform sampler2D pixels[2];
 
     void main () {
-      vec4 color = texture2D(pixels[0], uv);
+      vec2 p = uv - 0.5;
+      float theta = atan(p.y, p.x);
+      float radius = length(p);
+      float ampl = texture2D(pcm, vec2(theta / ${2.0 * Math.PI})).r;
+      radius += 0.1 * (ampl - 0.5);
+      vec4 color =
+        texture2D(pixels[0], 0.5 + radius * vec2(cos(theta), sin(theta)));
       gl_FragColor = vec4(pow(color.rgb, vec3(1.0 / gamma)), 1);
     }
     `,
