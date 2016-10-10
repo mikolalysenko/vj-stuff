@@ -15,7 +15,10 @@ const reglAnalyser = require('regl-audio/analyser')
 
 const gamma = 2.2
 
-const renderer = require('./renderer')(regl)
+// const renderer = require('./cube')(regl)
+// const renderer = require('./video-mesh')(regl)
+const renderer = require('./del-voro')(regl)
+// const renderer = require('./react-diffuse')(regl)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {
