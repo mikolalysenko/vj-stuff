@@ -16,10 +16,11 @@ const reglAnalyser = require('regl-audio/analyser')
 const gamma = 2.2
 
 // const renderer = require('./cube')(regl)
-const renderer = require('./video-mesh')(regl)
+// const renderer = require('./video-mesh')(regl)
 // const renderer = require('./del-voro')(regl)
 // const renderer = require('./react-diffuse')(regl)
 // const renderer = require('./tessellate')(regl)
+const renderer = require('./terrain')(regl)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {
@@ -167,7 +168,7 @@ function setup (analyser, video) {
           wrap: 'repeat'
         }),
         gamma: gamma,
-        video: videoTexture
+        video: video ? videoTexture : 0
       },
 
       attributes: {
