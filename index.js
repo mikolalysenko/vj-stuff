@@ -16,9 +16,10 @@ const reglAnalyser = require('regl-audio/analyser')
 const gamma = 2.2
 
 // const renderer = require('./cube')(regl)
-// const renderer = require('./video-mesh')(regl)
-const renderer = require('./del-voro')(regl)
+const renderer = require('./video-mesh')(regl)
+// const renderer = require('./del-voro')(regl)
 // const renderer = require('./react-diffuse')(regl)
+// const renderer = require('./tessellate')(regl)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {
@@ -42,19 +43,24 @@ const audioContext = new (
 getUserMedia.call(
   navigator,
   {
-    video: true,
+    video: renderer.video,
     audio: true
   },
   function (stream) {
     const analyser = audioContext.createAnalyser()
     audioContext.createMediaStreamSource(stream).connect(analyser)
 
-    const video = document.createElement('video')
-    video.src = window.URL.createObjectURL(stream)
-    video.addEventListener('canplay', function (e) {
-      setup(analyser, video)
-    })
-    video.play()
+    if (renderer.video) {
+      const video = document.createElement('video')
+      video.muted = true
+      video.src = window.URL.createObjectURL(stream)
+      video.addEventListener('canplay', function (e) {
+        setup(analyser, video)
+      })
+      video.play()
+    } else {
+      setup(analyser, null)
+    }
   },
   function () {
     window.alert('microphone input not supported')
@@ -69,7 +75,10 @@ function setup (analyser, video) {
     sampleRate: audioContext.sampleRate
   })
   setTimeout(function () {
-    const videoTexture = regl.texture(video)
+    let videoTexture = null
+    if (video) {
+      videoTexture = regl.texture(video)
+    }
 
     const postFBO = [
       regl.framebuffer({
@@ -202,7 +211,7 @@ function setup (analyser, video) {
         })
       })
 
-      if (tick % 2) {
+      if (video && tick % 2) {
         videoTexture.subimage(video)
       }
     })

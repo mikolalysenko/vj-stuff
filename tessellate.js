@@ -1,9 +1,6 @@
 const mat4 = require('gl-mat4')
 const glslify = require('glslify')
-const surfaceNets = require('surface-nets')
-const ndarray = require('ndarray')
-
-const GRID_SIZE = 4
+const delaunay = require('delaunay-triangulate')
 
 module.exports = function (regl) {
   const environmentMap = `
@@ -12,19 +9,25 @@ module.exports = function (regl) {
   }
 
   vec3 envMap (vec3 dir) {
-    float t = 1.0 / max(0.0001, length(dir.y));
+    float t = 1.0 / (1.0 - length(dir.xy));
     vec3 hit = t * dir;
 
-    vec2 hx = step(vec2(0.05), fract(0.25 * hit.xz));
+    float theta = atan(hit.y, hit.x) + 0.5 * time;
+    float radius = hit.z - 0.25 * time;
 
-    return colors[0];
+    float hx = step(fract(theta * 40.0 / ${2.0 * Math.PI}), 0.1);
+    float hy = step(fract(radius * 10.0), 0.1);
+    return mix(
+      mix(
+        colors[0],
+        colors[2],
+        max(hx, hy)),
+      colors[1],
+      1.0 / (1.0 + exp(-5.0 * (1.0 - abs(hit.z)) ) ));
   }
 
   vec3 roughEnvMap (vec3 dir) {
-    return mix(
-      0.5 * (colors[2] + colors[4]),
-      ground(),
-      1.0 / (1.0 + exp(10.0 * dir.y)));
+    return colors[0];
   }
   `
 
@@ -82,160 +85,62 @@ module.exports = function (regl) {
     }
   })
 
-  const webcamParticles = regl({
+  const drawPoints = regl({
     vert: `
     precision mediump float;
-    attribute vec2 particleId;
-    varying vec3 fcolor;
-
-    ${commonShader}
-
+    attribute vec2 position;
     void main () {
-      vec4 videoColor = texture2D(video, particleId);
-
-      float luminance = pow(
-        max(videoColor.r, max(videoColor.g, videoColor.b)), 1.0 / 2.2);
-
-      fcolor = mix(colors[1], colors[3], pow(luminance, 0.01));
-
-      gl_PointSize = 8.0;
-
-      gl_Position = projection * view * vec4(
-        80.0 * (vec3(particleId.x,
-        1.0 - particleId.y,
-        luminance + 4.0 * beats[0] *
-          cos(10.0 * time + 10.0 * length(particleId - 0.5))
-        ) - 0.5),
-        1);
-    }
-    `,
+      // gl_PointSize = 8.0;
+      gl_Position = vec4(0.125 * position, 0, 1);
+    }`,
 
     frag: `
     precision mediump float;
-    varying vec3 fcolor;
-
+    ${commonShader}
     void main () {
-      gl_FragColor = vec4(fcolor, 1);
+      gl_FragColor = vec4(colors[4], 1);
     }
     `,
 
     attributes: {
-      particleId: (() => {
-        const ids = []
-        for (let x = 0; x < 256; ++x) {
-          for (let y = 0; y < 256; ++y) {
-            ids.push(x / 256, y / 256)
-          }
-        }
-        return ids
-      })()
+      position: regl.prop('position')
     },
 
-    count: 256 * 256,
+    lineWidth: 4,
 
-    primitive: 'points'
+    elements: regl.prop('cells')
   })
 
-  const webcamFBO = regl.framebuffer({
-    shape: [256, 256, 4],
-    depthStencil: false
-  })
+  let shift = 0
 
-  const drawWebcam = regl({
-    frag: `
-    precision mediump float;
-    varying vec2 uv;
-    uniform sampler2D video;
-    void main () {
-      vec4 color = texture2D(video, uv);
-      gl_FragColor = vec4(max(
-        color.r,
-        max(color.g, color.b)
-      ), 0, 0, 1);
+  function scene ({tick, beats}) {
+    shift += beats[2]
+    const points = []
+    for (let i = 0; i < 5; ++i) {
+      for (let j = 0; j < 15; ++j) {
+        var theta = (i + 0.5 * j *
+            Math.cos(shift + 0.001 * Math.PI * 2.0 * tick)) / 5.0 * Math.PI * 2.0
+        const c = Math.cos(theta)
+        const s = Math.sin(theta)
+        points.push([
+          (j + 0.125 * Math.cos(0.25 * j + shift + 0.01 * tick)) * c,
+          (j + 0.125 * Math.sin(0.25 * j + shift + 0.01 * tick)) * s
+        ])
+      }
     }
-    `,
+    const cells = delaunay(points)
 
-    vert: `
-    precision mediump float;
-    attribute vec2 position;
-    varying vec2 uv;
-
-    void main () {
-      uv = 0.5 * (position + 1.0);
-      gl_Position = vec4(position, 0, 1);
+    const edges = []
+    for (let i = 0; i < cells.length; ++i) {
+      const c = cells[i]
+      for (let j = 0; j < 3; ++j) {
+        edges.push([c[j], c[(j + 1) % 3]])
+      }
     }
-    `,
-
-    framebuffer: webcamFBO
-  })
-
-  const webcamPixels = new Uint8Array(256 * 256 * 4)
-
-  const webcamBuffer = regl.buffer({
-    type: 'float'
-  })
-  const webcamElements = regl.elements({
-    primitive: 'lines',
-    length: 1
-  })
-
-  const webcamLines = regl({
-    vert: `
-    precision mediump float;
-
-    ${commonShader}
-
-    attribute vec2 position;
-
-    varying float fDZ;
-
-    void main () {
-      float dz = 1.0 + 0.25 * cos(4.0 * time + 0.5 * position.x);
-
-      gl_Position = projection * view * vec4(
-        80.0 * position.x / 256.0 - 40.0,
-        80.0 * (1.0 -  (position.y / 256.0)) - 40.0 +
-        2.0 * dz * texture2D(pcm,
-          vec2(fract(position.x + time))).r,
-        30.0 + 5.0 * dz,
-        1.0);
-    }
-    `,
-
-    frag: `
-    precision mediump float;
-
-    ${commonShader}
-
-    void main () {
-      gl_FragColor = vec4(colors[1], 1);
-    }
-    `,
-
-    attributes: {
-      position: webcamBuffer
-    },
-
-    lineWidth: 8,
-
-    elements: webcamElements
-  })
-
-  function scene () {
-    drawWebcam(({tick}) => {
-      regl.draw()
-      regl.read(webcamPixels)
-      const mesh = surfaceNets(ndarray(
-        webcamPixels,
-        [256, 256],
-        [4, 256 * 4]
-      ), 128)
-
-      webcamBuffer(mesh.positions)
-      webcamElements(mesh.cells)
+    drawPoints({
+      position: points,
+      cells: edges
     })
-    webcamParticles()
-    webcamLines()
   }
 
   const setupCamera = (function () {
@@ -309,6 +214,7 @@ module.exports = function (regl) {
   function forward (context) {
     angle += 0.01
 
+    /*
     if (context.beats[3] > 0.001) {
       for (let i = 0; i < 3; ++i) {
         cameraTargetGoal[i] += 2.0 * (Math.random() - 0.5)
@@ -321,8 +227,9 @@ module.exports = function (regl) {
         cameraEyeGoal[i] += 10.0 * (Math.random() - 0.5)
         cameraEyeGoal[i] *= 0.95
       }
-      cameraEyeGoal[2] = 100
+      cameraEyeGoal[2] = 40
     }
+    */
 
     for (let i = 0; i < 3; ++i) {
       cameraTarget[i] = 0.9 * cameraTarget[i] + 0.1 * cameraTargetGoal[i]
@@ -365,7 +272,6 @@ module.exports = function (regl) {
 
   return {
     forward,
-    postprocess,
-    video: true
+    postprocess
   }
 }

@@ -178,7 +178,6 @@ module.exports = function (regl) {
   const drawCubeArray = regl({
     frag: `
     precision mediump float;
-    uniform sampler2D video;
     varying vec3 fNormal, fEye;
     varying vec2 fUV;
     varying float fAO;
@@ -191,16 +190,7 @@ module.exports = function (regl) {
       vec3 V = normalize(fEye);
       vec3 R = reflect(N, V);
 
-      /*
-      vec4 videoColor = texture2D(video,
-        1.5 * (vec2(gl_FragCoord.x, resolution.y - gl_FragCoord.y) / resolution - 0.5) + 0.5);
-      */
-      vec4 videoColor = texture2D(video, fUV);
-      float luminance =
-        max(videoColor.b, max(videoColor.r, videoColor.g));
-
-      vec3 vcolor =
-        mix(colors[1], colors[3], pow(luminance, 1.0 / 8.0));
+      vec3 vcolor = colors[3];
 
       vec3 spec = envMap(R);
       vec3 diffuse =
