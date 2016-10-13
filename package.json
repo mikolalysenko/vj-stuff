@@ -27,6 +27,6 @@
     "glsl-noise": "0.0.0",
     "glslify": "^6.0.0",
     "regl": "^1.2.1",
-    "regl-audio": "^1.0.0"
+    "regl-audio": "^1.1.0"
   }
 }

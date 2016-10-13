@@ -3,10 +3,9 @@ const glslify = require('glslify')
 module.exports = function (regl) {
   const commonShader = glslify`
     uniform float beats[16];
-    uniform float pitches[5];
     uniform vec3 colors[5];
     uniform sampler2D pcm, freq, noiseTexture, prevPixels;
-    uniform float time, volume, gamma;
+    uniform float time, volume, gamma, tempo;
     uniform vec3 eye;
     uniform mat4 projection, view, invProjection, invView;
 

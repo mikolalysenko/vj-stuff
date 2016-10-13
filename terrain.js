@@ -5,17 +5,20 @@ module.exports = function (regl) {
     uniform float beats[16];
     uniform float pitches[5];
     uniform vec3 colors[5];
+    uniform float tempo;
     uniform sampler2D pcm, freq, noiseTexture, prevPixels;
     uniform float time, volume, gamma;
     uniform vec3 eye;
     uniform mat4 projection, view, invProjection, invView;
 
     vec3 envMap (vec3 dir) {
-      return colors[0];
-    }
+      float t = 1.0 / max(0.0001, abs(dir.y));
+      vec3 hit = t * dir;
 
-    vec3 skyMap (vec3 dir) {
-      return colors[0];
+      return mix(
+        colors[0],
+        colors[2],
+        texture2D(freq, vec2(0.001 * length(hit))).r);
     }
 
     #pragma glslify: snoise = require(glsl-noise/simplex/3d)
@@ -28,6 +31,7 @@ module.exports = function (regl) {
 
   function scene () {
     terrain.draw()
+    // terrain.update()
   }
 
   function forward (context) {
@@ -57,7 +61,9 @@ module.exports = function (regl) {
       float radius = length(p);
       vec4 color = texture2D(pixels[0],
         0.5 + radius * vec2(cos(theta), sin(theta)));
-      gl_FragColor = vec4(pow(color.rgb, vec3(1.0 / gamma)), 1);
+
+      float dim = 1.0 / (1.0 + exp(-8.0 * (0.25 - length(uv - 0.5))));
+      gl_FragColor = vec4(pow(dim * color.rgb, vec3(1.0 / gamma)), 1);
     }
     `,
 
@@ -81,18 +87,43 @@ module.exports = function (regl) {
     const NUM_LODS = 6
 
     const terrainTexture = regl.texture({
-      radius: 512,
-      format: 'luminance',
+      radius: 128,
       type: 'float',
       wrap: 'repeat'
     })
 
+    const terrainFBO = [
+      regl.framebuffer({
+        color: terrainTexture,
+        depthStencil: false
+      }),
+      regl.framebuffer({
+        color: regl.texture({
+          radius: 512,
+          type: 'float',
+          wrap: 'repeat'
+        }),
+        depthStencil: false
+      }),
+      regl.framebuffer({
+        color: regl.texture({
+          radius: 512,
+          type: 'float',
+          wrap: 'repeat'
+        }),
+        depthStencil: false
+      })
+    ]
+
     const terrainSnippet = `
+      uniform sampler2D terrain;
+
       #define EPSILON (1.0 / 4096.0)
 
       float terrainHeight (vec2 uv) {
         return 10.0 *
-          pow(snoise(vec3(vec2(30.0, 5.3) * uv, 0.25 * time)), 0.9) - 10.0;
+           snoise(vec3(10.0 * uv,
+             cos(${2.0 * Math.PI} * 0.25 * tempo * time))) - 20.0;
       }
 
       vec3 terrainNormal (vec2 uv) {
@@ -123,7 +154,7 @@ module.exports = function (regl) {
         float zi = floor(eye.z);
         vec2 qc = (quadScale * quadUV + quadShift).yx;
         vec2 position = 512.0 * vec2(qc.x - 0.5, qc.y) + vec2(0, zi);
-        uv = fract(qc + vec2(0, +zi / 512.0));
+        uv = qc + vec2(0, +zi / 512.0);
         vec3 worldPos = vec3(position.x, terrainHeight(uv), position.y);
         vEye = eye - worldPos;
         gl_Position = projection * view * vec4(worldPos, 1);
@@ -170,7 +201,8 @@ module.exports = function (regl) {
 
       uniforms: {
         quadShift: regl.prop('shift'),
-        quadScale: regl.prop('scale')
+        quadScale: regl.prop('scale'),
+        terrain: terrainTexture
       },
 
       elements: (function () {
@@ -186,7 +218,7 @@ module.exports = function (regl) {
           }
         }
         return cells
-      })(),
+      })()
 
        // primitive: 'lines'
     })
@@ -205,10 +237,93 @@ module.exports = function (regl) {
       u += patchSize * (BUFFER_SIZE - 8) / BUFFER_SIZE
     }
 
+    const updateTerrain = regl({
+      framebuffer: regl.prop('dst'),
+
+      frag: `
+      precision highp float;
+      uniform sampler2D src, prev;
+      uniform vec2 resolution, impulse;
+      varying vec2 uv;
+
+      ${commonShader}
+
+      vec4 fetch (sampler2D image, vec2 coord) {
+        return texture2D(image, coord / resolution);
+      }
+
+      vec4 lap (sampler2D image, vec2 coord) {
+        return
+          fetch(image, coord + vec2(1, 0)) +
+          fetch(image, coord + vec2(-1, 0)) +
+          fetch(image, coord + vec2(0, 1)) +
+          fetch(image, coord + vec2(0, -1)) -
+          4.0 * fetch(image, coord);
+      }
+
+      void main () {
+        vec2 id = uv * resolution;
+        vec4 s0 = texture2D(src, uv);
+        vec4 s1 = texture2D(prev, uv);
+
+        gl_FragColor =
+          2.0 * s0 - s1 + 0.01 * lap(src, id) +
+          vec4(0.01 / (1.0 + exp(-4.0 * (0.25 - length(impulse - uv)))));
+      }
+      `,
+
+      vert: `
+      precision highp float;
+      attribute vec2 position;
+      varying vec2 uv;
+      void main () {
+        uv = 0.5 * (position + 1.0);
+        gl_Position = vec4(position, 0, 1);
+      }`,
+
+      uniforms: {
+        src: regl.prop('src'),
+        prev: regl.prop('prev'),
+        resolution: ({viewportWidth, viewportHeight}) =>
+          [viewportWidth, viewportHeight],
+        impulse: regl.prop('impulse')
+      },
+
+      attributes: {
+        position: [
+          [-4, 0],
+          [4, -4],
+          [4, 4]
+        ]
+      },
+
+      count: 3
+    })
+
     return {
       texture: terrainTexture,
       draw: function () {
         drawBuffer(terrainPatches)
+      },
+      update: function () {
+        updateTerrain({
+          prev: terrainFBO[2],
+          src: terrainFBO[0],
+          dst: terrainFBO[1],
+          impulse: [Math.random(), Math.random()]
+        })
+        updateTerrain({
+          prev: terrainFBO[0],
+          src: terrainFBO[1],
+          dst: terrainFBO[2],
+          impulse: [Math.random(), Math.random()]
+        })
+        updateTerrain({
+          prev: terrainFBO[1],
+          src: terrainFBO[2],
+          dst: terrainFBO[0],
+          impulse: [Math.random(), Math.random()]
+        })
       }
     }
   }

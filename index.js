@@ -1,6 +1,11 @@
 const regl = require('regl')({
   pixelRatio: 1,
-  extensions: ['OES_texture_float', 'OES_texture_half_float'],
+  extensions: [
+    'OES_texture_float',
+    'OES_texture_half_float',
+    'OES_texture_float_linear',
+    'OES_texture_half_float_linear'
+  ],
   onDone: (err) => {
     if (err) {
       document.body.innerHTML = `
@@ -20,7 +25,8 @@ const gamma = 2.2
 // const renderer = require('./del-voro')(regl)
 // const renderer = require('./react-diffuse')(regl)
 // const renderer = require('./tessellate')(regl)
-const renderer = require('./terrain')(regl)
+// const renderer = require('./terrain')(regl)
+const renderer = require('./particles')(regl)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {
@@ -72,8 +78,10 @@ function setup (analyser, video) {
     regl,
     analyser,
     beats: 16,
+    pitches: 0,
     name: '',
-    sampleRate: audioContext.sampleRate
+    sampleRate: audioContext.sampleRate,
+    tempo: 140 / 60
   })
   setTimeout(function () {
     let videoTexture = null

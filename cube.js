@@ -8,7 +8,7 @@ const GRID_SIZE = 4
 module.exports = function (regl) {
   const environmentMap = `
   vec3 ground () {
-    return mix(colors[0], colors[4], beats[0] + beats[1] + beats[5]);
+    return colors[0];
   }
 
   vec3 envMap (vec3 dir) {
@@ -412,7 +412,7 @@ module.exports = function (regl) {
         drawBackground()
         scene(context)
       })
-    if (context.beats[3] > 0) {
+    if (context.beats[2] + context.beats[4] > 0) {
       next()
     }
     updateDisplacements(0.1, 0.4)
