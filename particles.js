@@ -17,7 +17,33 @@ module.exports = function (regl) {
   `
 
   const setupCamera = require('./camera')(regl)
-  const drawBackground = require('./skybox')(regl, commonShader)
+  const drawBackground = regl({
+    frag: `
+    precision highp float;
+    varying vec2 screenPos;
+
+    ${commonShader}
+
+    void main () {
+      vec4 pcolor = texture2D(prevPixels, screenPos);
+      gl_FragColor = vec4(0.9 * pcolor.xyz, 1);
+    }
+    `,
+
+    vert: `
+    precision highp float;
+    attribute vec2 position;
+    varying vec2 screenPos;
+    void main () {
+      screenPos = 0.5 * (1.0 + position);
+      gl_Position = vec4(position, 1, 1);
+    }
+    `,
+
+    depth: {
+      enable: false
+    }
+  })
 
   const N = 512
   const T = 3
@@ -76,13 +102,15 @@ module.exports = function (regl) {
       'state[1]': prevFBO(2),
       resolution: ({viewportWidth, viewportHeight}) =>
         [viewportWidth, viewportHeight],
-      impulse: regl.prop('impulse'),
+      impulseDir: regl.prop('impulseDir'),
+      impulseOrigin: regl.prop('impulseOrigin'),
       weight: regl.prop('weight')
     },
 
     frag: `
     precision highp float;
     uniform sampler2D state[2];
+    uniform vec3 impulseDir, impulseOrigin;
     varying vec2 uv;
 
     ${commonShader}
@@ -90,12 +118,10 @@ module.exports = function (regl) {
     #define EPSILON 0.001
 
     vec3 force (vec3 p) {
-      /*
       return 0.0 +
         0.0025 * beats[0] * curlNoise(p) +
-        0.0005 * (1.0 - beats[0]) * (normalize(p) - p);
-      */
-      return vec3(0, 0, 0);
+        0.00005 * (1.0 - beats[3]) * (normalize(p) - p) +
+        impulseDir / (1.0 + exp(-20.0 * (0.9 - length(p - impulseOrigin))));
     }
 
     void main () {
@@ -104,6 +130,58 @@ module.exports = function (regl) {
 
       vec3 nextPos = s0 +
         (1.0 - step(0.8, beats[9])) * (s0 - s1) + force(s0);
+
+      gl_FragColor = vec4(
+        nextPos,
+        1);
+    }
+    `
+  }, bigTriangle))
+
+  const updateReset = regl(Object.assign({
+    framebuffer: nextFBO,
+
+    uniforms: {
+      'state[0]': prevFBO(1),
+      'state[1]': prevFBO(2),
+      resolution: ({viewportWidth, viewportHeight}) =>
+        [viewportWidth, viewportHeight],
+      impulseDir: regl.prop('impulseDir'),
+      impulseOrigin: regl.prop('impulseOrigin'),
+      weight: regl.prop('weight')
+    },
+
+    frag: `
+    precision highp float;
+    uniform sampler2D state[2];
+    uniform vec3 impulseDir, impulseOrigin;
+    varying vec2 uv;
+
+    ${commonShader}
+
+    #define EPSILON 0.001
+
+    vec3 force (vec3 p) {
+      float theta = ${4.0 * Math.PI} * uv.x;
+      float phi = ${Math.PI} * (uv.y - 0.5);
+
+      float r = 1.0;
+
+      vec3 target = vec3(
+        r * cos(theta) * cos(phi),
+        r * sin(theta) * cos(phi),
+        r * sin(phi));
+
+      return 0.0 +
+        0.01 * (target - p);
+    }
+
+    void main () {
+      vec3 s0 = texture2D(state[0], uv).xyz;
+      vec3 s1 = texture2D(state[1], uv).xyz;
+
+      vec3 nextPos = s0 +
+        0.8 * (s0 - s1) + force(s0);
 
       gl_FragColor = vec4(
         nextPos,
@@ -196,10 +274,43 @@ module.exports = function (regl) {
 
   init()
 
-  function scene () {
+  const cameraTarget = [0, 0, 0]
+  const cameraTargetGoal = [0, 0, 0]
+
+  function scene ({tick, beats}) {
+    const dir = [
+      0.1 * beats[0] * (Math.random() - 0.5),
+      0.1 * beats[0] * (Math.random() - 0.5),
+      0.1 * beats[0] * (Math.random() - 0.5)
+    ]
+    const origin = [
+      (Math.random() - 0.5),
+      (Math.random() - 0.5),
+      (Math.random() - 0.5)
+    ]
+
+    if (beats[0]) {
+      for (let i = 0; i < 3; ++i) {
+        cameraTargetGoal[i] = origin[i] + 20.0 * dir[i]
+      }
+    }
+
     drawPoints()
-    update()
+    if (tick % 1000 > 900) {
+      for (let i = 0; i < 3; ++i) {
+        cameraTargetGoal[i] = 0
+      }
+      updateReset()
+    } else {
+      update({
+        impulseDir: dir,
+        impulseOrigin: origin
+      })
+    }
   }
+
+  let tilt = 0
+  let angle = 0
 
   function forward (context) {
     const {
@@ -207,7 +318,20 @@ module.exports = function (regl) {
     } = context
 
     const radius = 5.0
-    const theta = Math.PI * Math.cos(0.0125 * 2.0 * Math.PI * tempo * regl.now())
+    angle = Math.max(angle, 0.0125 * 2.0 * Math.PI * tempo * regl.now())
+    const theta = Math.PI * Math.cos(angle)
+
+    /*
+    tilt += 0.125 * context.beats[2]
+    tilt *= 0.99
+
+    setupCamera.up[1] = Math.cos(tilt)
+    setupCamera.up[2] = Math.sin(tilt)
+    */
+
+    for (let i = 0; i < 3; ++i) {
+      cameraTarget[i] = 0.9 * cameraTarget[i] + 0.1 * cameraTargetGoal[i]
+    }
 
     setupCamera(
       [
@@ -215,7 +339,7 @@ module.exports = function (regl) {
         0,
         radius * Math.sin(theta)
       ],
-      [0, 0, 0],
+      cameraTarget,
       () => {
         regl.clear({depth: 1})
         drawBackground()
@@ -236,9 +360,24 @@ module.exports = function (regl) {
       vec2 p = uv - 0.5;
       float theta = atan(p.y, p.x);
       float radius = length(p);
-      vec4 color = texture2D(pixels[0],
-        0.5 + radius * vec2(cos(theta), sin(theta)));
-      gl_FragColor = vec4(pow(color.rgb, vec3(1.0 / gamma)), 1);
+
+      vec2 ruv = 0.5 + radius * vec2(
+        cos(theta), sin(theta));
+
+      float amp = texture2D(pcm, vec2(uv)).r;
+      float fft = texture2D(freq, vec2(uv.yx)).r;
+
+      vec2 dr = vec2(0.08 * (amp - 0.5), 0.01 * fft);
+      vec2 dg = vec2(0.16 * (amp - 0.5), 0.01 * fft);
+      vec2 db = vec2(-0.08 * (amp - 0.5), 0.01 * fft);
+
+      float red = texture2D(pixels[0], ruv + dr).r;
+      float green = texture2D(pixels[0], ruv + dg).g;
+      float blue = texture2D(pixels[0], ruv + db).b;
+
+      gl_FragColor = vec4(pow(
+        vec3(red, green, blue),
+        vec3(1.0 / gamma)), 1);
     }
     `,
 

@@ -1,5 +1,5 @@
 const regl = require('regl')({
-  pixelRatio: 1,
+  pixelRatio: 0.5,
   extensions: [
     'OES_texture_float',
     'OES_texture_half_float',
@@ -26,7 +26,9 @@ const gamma = 2.2
 // const renderer = require('./react-diffuse')(regl)
 // const renderer = require('./tessellate')(regl)
 // const renderer = require('./terrain')(regl)
-const renderer = require('./particles')(regl)
+// const renderer = require('./particles')(regl)
+// const renderer = require('./polytope')(regl)
+const renderer = require('./hexes')(regl)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {

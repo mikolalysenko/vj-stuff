@@ -42,7 +42,7 @@ module.exports = function (regl) {
 
   const up = [0, 1, 0]
 
-  return function (eye, center, body) {
+  const result = function (eye, center, body) {
     regl.draw(({viewportWidth, viewportHeight, tick}) => {
       mat4.perspective(projection,
         Math.PI / 4.0,
@@ -61,4 +61,8 @@ module.exports = function (regl) {
       }, body)
     })
   }
+
+  result.up = up
+
+  return result
 }

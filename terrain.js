@@ -31,7 +31,7 @@ module.exports = function (regl) {
 
   function scene () {
     terrain.draw()
-    // terrain.update()
+    terrain.update()
   }
 
   function forward (context) {
@@ -53,28 +53,56 @@ module.exports = function (regl) {
 
     ${commonShader}
 
+    uniform vec2 redOffset, greenOffset, blueOffset;
     uniform sampler2D pixels[2];
 
     void main () {
       vec2 p = uv - 0.5;
       float theta = atan(p.y, p.x);
       float radius = length(p);
-      vec4 color = texture2D(pixels[0],
-        0.5 + radius * vec2(cos(theta), sin(theta)));
+
+
+      vec2 rotUV = 0.5 + radius * vec2(cos(theta), sin(theta));
+
+      vec4 rcolor = texture2D(pixels[0], rotUV + redOffset);
+      vec4 gcolor = texture2D(pixels[0], rotUV + greenOffset);
+      vec4 bcolor = texture2D(pixels[0], rotUV + blueOffset);
+
+      vec3 color = vec3(
+        rcolor.r,
+        gcolor.g,
+        bcolor.b
+      );
 
       float dim = 1.0 / (1.0 + exp(-8.0 * (0.25 - length(uv - 0.5))));
-      gl_FragColor = vec4(pow(dim * color.rgb, vec3(1.0 / gamma)), 1);
+      gl_FragColor = vec4(pow(dim * color, vec3(1.0 / gamma)), 1);
     }
     `,
 
     uniforms: {
       resolution: ({viewportWidth, viewportHeight}) =>
-        [viewportWidth, viewportHeight]
+        [viewportWidth, viewportHeight],
+      redOffset: regl.prop('redOffset'),
+      blueOffset: regl.prop('blueOffset'),
+      greenOffset: regl.prop('greenOffset')
     }
   })
 
   function postprocess (context) {
-    drawPost()
+    drawPost({
+      redOffset: [
+        0.08 * context.beats[3] * (Math.random() - 0.5),
+        0.08 * context.beats[4] * (Math.random() - 0.5)
+      ],
+      greenOffset: [
+        0.08 * context.beats[5] * (Math.random() - 0.5),
+        0.08 * context.beats[6] * (Math.random() - 0.5)
+      ],
+      blueOffset: [
+        0.08 * context.beats[7] * (Math.random() - 0.5),
+        0.08 * context.beats[8] * (Math.random() - 0.5)
+      ]
+    })
   }
 
   return {
@@ -89,7 +117,9 @@ module.exports = function (regl) {
     const terrainTexture = regl.texture({
       radius: 128,
       type: 'float',
-      wrap: 'repeat'
+      wrap: 'repeat',
+      min: 'linear',
+      mag: 'linear'
     })
 
     const terrainFBO = [
@@ -122,8 +152,15 @@ module.exports = function (regl) {
 
       float terrainHeight (vec2 uv) {
         return 10.0 *
-           snoise(vec3(10.0 * uv,
-             cos(${2.0 * Math.PI} * 0.25 * tempo * time))) - 20.0;
+           pow(snoise(vec3(20.0 * uv,
+             cos(${2.0 * Math.PI} * 0.25 * tempo * time))), 3.0) +
+
+           30.0 *
+              pow(snoise(vec3(2.0 * uv,
+                cos(${2.0 * Math.PI} * 0.125 * tempo * time))), 2.0)
+
+             - 40.0 +
+            texture2D(terrain, 10.0 * uv).r;
       }
 
       vec3 terrainNormal (vec2 uv) {
@@ -242,7 +279,7 @@ module.exports = function (regl) {
 
       frag: `
       precision highp float;
-      uniform sampler2D src, prev;
+      uniform sampler2D src;
       uniform vec2 resolution, impulse;
       varying vec2 uv;
 
@@ -264,11 +301,21 @@ module.exports = function (regl) {
       void main () {
         vec2 id = uv * resolution;
         vec4 s0 = texture2D(src, uv);
-        vec4 s1 = texture2D(prev, uv);
+
+        float theta = 10.0 * ${2.0 * Math.PI} * tempo * time;
+
+        vec2 center = vec2(
+          cos(0.125 * ${2.0 * Math.PI} * tempo * time),
+          sin(0.125 * ${2.0 * Math.PI} * tempo * time));
 
         gl_FragColor =
-          2.0 * s0 - s1 + 0.01 * lap(src, id) +
-          vec4(0.01 / (1.0 + exp(-4.0 * (0.25 - length(impulse - uv)))));
+          0.95 * (s0 + 0.01 * lap(src, id) +
+
+          step(0.25, length(uv - center)) *
+          4.5 * beats[0] * texture2D(pcm,
+            fract(10.0 *
+                vec2(cos(theta) * uv.x + sin(theta) * uv.y))))
+            ;
       }
       `,
 
@@ -307,22 +354,12 @@ module.exports = function (regl) {
       },
       update: function () {
         updateTerrain({
-          prev: terrainFBO[2],
           src: terrainFBO[0],
-          dst: terrainFBO[1],
-          impulse: [Math.random(), Math.random()]
+          dst: terrainFBO[1]
         })
         updateTerrain({
-          prev: terrainFBO[0],
-          src: terrainFBO[1],
-          dst: terrainFBO[2],
-          impulse: [Math.random(), Math.random()]
-        })
-        updateTerrain({
-          prev: terrainFBO[1],
-          src: terrainFBO[2],
           dst: terrainFBO[0],
-          impulse: [Math.random(), Math.random()]
+          src: terrainFBO[1]
         })
       }
     }
