@@ -183,7 +183,7 @@ module.exports = function (regl) {
         0.2 +
         pow(texture2D(freq, vec2(0.5 * (1.0 + cos(0.01 * time + sid)))).r,
         0.25)
-        + beats[0] + 1.5 * beats[1] + 1.6 * beats[2] + 1.8 * beats[3] + 2.5 * beats[4]
+        + beats[0]
       );
       float displacement = 30.0 /
         (1.0 + exp(-10.0 * (
@@ -331,7 +331,7 @@ module.exports = function (regl) {
       vec2 offset = (uv - 0.5) / aspect;
       float r = length(offset) * (0.5 + 2.0 * beats[1]);
       float theta = atan(offset.x, offset.y) +
-        16.0 * beats[0] * r * pow(cos(0.1 * time), 5.0);
+        4.0 * beats[0] * r * pow(cos(0.1 * time), 5.0);
 
       vec2 nuv = 0.5 + aspect * r * vec2(cos(theta), sin(theta));
 

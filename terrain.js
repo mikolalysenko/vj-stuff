@@ -29,7 +29,14 @@ module.exports = function (regl) {
 
   const terrain = initTerrain(regl)
 
+  const setupPrepass = regl({
+    colorMask: [false, false, false, false]
+  })
+
   function scene () {
+    setupPrepass(() => {
+      terrain.draw()
+    })
     terrain.draw()
     terrain.update()
   }
@@ -255,9 +262,13 @@ module.exports = function (regl) {
           }
         }
         return cells
-      })()
+      })(),
 
-       // primitive: 'lines'
+      depth: {
+        func: '<='
+      }
+
+      //n primitive: 'lines'
     })
 
     const terrainPatches = []

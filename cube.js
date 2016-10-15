@@ -412,7 +412,7 @@ module.exports = function (regl) {
         drawBackground()
         scene(context)
       })
-    if (context.beats[2] + context.beats[4] > 0) {
+    if (context.beats[0] + context.beats[2] + context.beats[4] > 0) {
       next()
     }
     updateDisplacements(0.1, 0.4)
