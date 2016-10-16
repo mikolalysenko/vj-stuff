@@ -27,15 +27,20 @@ module.exports = function (regl) {
   const drawBackground = require('./skybox')(regl, commonShader)
 
   const dendrites = initDendrites()
+  const helix = initHelix()
 
   let tickOffset = 0
 
   function cameraX (tick) {
-    return 0.03 * tick
+    return 0.05 * tick
   }
 
   function scene (context) {
-    let deltaTick = context.beats[0] ? 30 : 1
+    let deltaTick = 1
+    for (let i = 0; i < context.beats.length; ++i) {
+      deltaTick += 4 * context.beats[i]
+    }
+    helix.draw()
     dendrites.draw()
     for (let i = 0; i < deltaTick; ++i) {
       if (tickOffset % 3 === 0) {
@@ -46,7 +51,12 @@ module.exports = function (regl) {
         dendrites.addNeuron(context)
       }
     }
+    if (Math.random() < 0.02) {
+      helix.addHelix(context.tick)
+    }
   }
+
+  helix.addHelix(0)
 
   function forward (context) {
     const tick = context.tick
@@ -104,8 +114,6 @@ module.exports = function (regl) {
 
   function initDendrites () {
     const bufferPool = []
-    const RATE = 0.05
-
     function Dendrite (origin) {
       this.position = bufferPool.pop() ||
         regl.buffer({
@@ -196,7 +204,12 @@ module.exports = function (regl) {
           snoise(vec4(p, 0. + time)),
           snoise(vec4(p, 1. + 3.0 * time)),
           snoise(vec4(p, 2. + time))) +
-          0.1 * normalize(p - eye + vec3(1.0, 0, 0)) * cos(time + 0.25 * weight);
+          0.25 * normalize(vec3(0, p.yz)) * texture2D(freq, vec2(fract(p.x))).r;
+
+        float theta = atan(p.z, p.y) + 0.5 * (beats[3] - beats[6]) * (p.x - eye.x);
+        float r = length(p.yz);
+        p.yz = r * vec2(cos(theta), sin(theta));
+
         vec4 clipPos = projection * view * vec4(p, 1);
         fogWeight = clipPos.z / clipPos.w;
         gl_Position = clipPos;
@@ -274,6 +287,112 @@ module.exports = function (regl) {
         ])
         N.phase = tickOffset
         neurons.push(N)
+      }
+    }
+  }
+
+  function initHelix () {
+    const draw = regl({
+      frag: `
+      precision mediump float;
+      ${commonShader}
+      varying float weight;
+      void main () {
+        if (length(gl_PointCoord.xy - 0.5) > 0.5) {
+          discard;
+        }
+        gl_FragColor = vec4(
+          mix(colors[3], colors[4], weight), 1);
+      }
+      `,
+
+      vert: `
+      precision mediump float;
+      attribute float displacement;
+      uniform vec3 offset;
+      uniform float scale, radius, phase, twist;
+      ${commonShader}
+      varying float weight;
+
+      void main () {
+        float theta =
+          phase + twist * displacement * ${16.0 * Math.PI};
+        vec3 p = vec3(
+          displacement * scale,
+          radius * cos(theta),
+          radius * sin(theta)
+        ) + offset;
+        gl_PointSize = 16.0 * (1.2 + cos(8.0 * displacement + 2.0 * time));
+        weight = displacement;
+        gl_Position = projection * view * vec4(p, 1);
+      }
+      `,
+
+      uniforms: {
+        offset: regl.prop('offset'),
+        scale: regl.prop('scale'),
+        radius: regl.prop('radius'),
+        phase: regl.prop('phase'),
+        twist: regl.prop('twist')
+      },
+
+      attributes: {
+        displacement: (function () {
+          const points = []
+          for (let i = 0; i < 128; ++i) {
+            points.push(i / 128)
+          }
+          return points
+        })()
+      },
+
+      count: 128,
+
+      primitive: 'points'
+    })
+
+    const helixBuffer = []
+
+    return {
+      draw: function (tick) {
+        const x = cameraX(tick)
+        draw(helixBuffer)
+        for (let i = helixBuffer.length - 1; i >= 0; --i) {
+          const h = helixBuffer[i]
+          if (h.offset[0] + h.scale * 128 < x - 2) {
+            helixBuffer[i] = helixBuffer[helixBuffer.length - 1]
+            helixBuffer.pop()
+          }
+        }
+      },
+
+      addHelix: function (tick) {
+        const x = cameraX(tick) + 10.0
+        const phase = 2.0 * Math.PI * Math.random()
+        const radius = 0.5 * Math.random()
+        const scale = 10.0 * Math.random() + 2.0
+        const twist = 8.0 * Math.pow(Math.random(), 3.0)
+        helixBuffer.push({
+          offset: [
+            x,
+            0,
+            0
+          ],
+          phase,
+          radius,
+          scale,
+          twist
+        }, {
+          offset: [
+            x,
+            0,
+            0
+          ],
+          phase: phase + Math.PI,
+          radius,
+          scale,
+          twist
+        })
       }
     }
   }

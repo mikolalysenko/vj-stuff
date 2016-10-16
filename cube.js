@@ -385,6 +385,7 @@ module.exports = function (regl) {
   let angle = 0.0
   const cameraTarget = [0, 0, 0]
   const cameraTargetGoal = [0, 0, 0]
+  let tempoSum = 0.0
   function forward (context) {
     angle += 0.01
 
@@ -412,8 +413,10 @@ module.exports = function (regl) {
         drawBackground()
         scene(context)
       })
-    if (context.beats[0] + context.beats[2] + context.beats[4] > 0) {
+    tempoSum += 0.125 * context.tempo
+    while (tempoSum > 0) {
       next()
+      tempoSum -= 1
     }
     updateDisplacements(0.1, 0.4)
   }

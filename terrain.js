@@ -33,11 +33,70 @@ module.exports = function (regl) {
     colorMask: [false, false, false, false]
   })
 
+  const drawPoints = regl({
+    frag: `
+    precision highp float;
+
+    void main () {
+      if (length(gl_PointCoord.xy - 0.5) > 0.5) {
+        discard;
+      }
+      gl_FragColor = vec4(0, 0, 0, 1);
+    }`,
+
+    vert: `
+    precision highp float;
+    attribute vec2 position;
+    uniform vec3 offset;
+    uniform vec2 scale;
+    ${commonShader}
+    void main () {
+      gl_PointSize = 32.0 * pow(0.5 * (1.0 + cos(0.25 * position.y + 0.01 * time)), 16.0);
+      gl_Position =
+        projection * view * vec4(
+          scale.x * position.x + offset.x,
+          offset.y,
+          scale.y * position.y + offset.z,
+          1
+        );
+    }
+    `,
+
+    attributes: {
+      position: (function () {
+        const points = []
+        for (let i = 0; i < 100; ++i) {
+          for (let j = 0; j < 100; ++j) {
+            points.push([i, j])
+          }
+        }
+        return points
+      })()
+    },
+
+    uniforms: {
+      offset: regl.prop('offset'),
+      scale: regl.prop('scale')
+    },
+
+    count: 100 * 100,
+
+    primitive: 'points'
+  })
+
+  const pointClouds = [
+    {
+      offset: [-100, -5, 0],
+      scale: [10, 10]
+    }
+  ]
+
   function scene () {
     setupPrepass(() => {
       terrain.draw()
     })
     terrain.draw()
+    // drawPoints(pointClouds)
     terrain.update()
   }
 
