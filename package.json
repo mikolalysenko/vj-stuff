@@ -26,10 +26,15 @@
     "gl-vec4": "^1.0.1",
     "glsl-curl-noise": "0.0.4",
     "glsl-fast-gaussian-blur": "^1.0.2",
+    "glsl-hsl2rgb": "^1.1.0",
+    "glsl-hsv2rgb": "^1.0.0",
     "glsl-noise": "0.0.0",
     "glslify": "^6.0.0",
+    "greedy-mesher": "^1.0.3",
+    "omggif": "^1.0.8",
     "regl": "^1.2.1",
     "regl-audio": "^1.1.0",
+    "resl": "^1.0.3",
     "vectorize-text": "^3.0.2"
   }
 }

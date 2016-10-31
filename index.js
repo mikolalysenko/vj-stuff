@@ -23,16 +23,19 @@ const gamma = 2.2
 // const renderer = require('./cube')(regl)
 // const renderer = require('./video-mesh')(regl)
 // const renderer = require('./del-voro')(regl)
-const renderer = require('./react-diffuse')(regl)
+// const renderer = require('./react-diffuse')(regl)
 // const renderer = require('./tessellate')(regl)
 // const renderer = require('./terrain')(regl)
-// const renderer = require('./particles')(regl)
+const renderer = require('./particles')(regl)
 // const renderer = require('./polytope')(regl)
 // const renderer = require('./hexes')(regl)
 // const renderer = require('./dendrite')(regl)
 // const renderer = require('./fog-monochrome')(regl)
 // const renderer = require('./ribbons')(regl)
-
+// const renderer = require('./gifs')(regl)
+// const renderer = require('./gif-mesh')(regl)
+// const renderer = require('./space-nav')(regl)
+// const renderer = require('./highways')(regl)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {
