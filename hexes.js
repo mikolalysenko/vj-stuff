@@ -139,8 +139,8 @@ module.exports = function (regl) {
       ])
     }
 
-    for (let i = 0; i < 7; ++i) {
-      const theta = 2.0 * Math.PI * (i / 7.0 - 0.25 * shift)
+    for (let i = 0; i < 9; ++i) {
+      const theta = 2.0 * Math.PI * (i / 9.0 - 0.25 * shift)
       points.push([
         2.0 * Math.sin(theta), 2.0 * Math.cos(theta)
       ])

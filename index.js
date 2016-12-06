@@ -1,5 +1,6 @@
 const regl = require('regl')({
   // pixelRatio: 0.5,
+  // pixelRatio: 1,
   extensions: [
     'OES_texture_float',
     'OES_texture_half_float',
@@ -15,6 +16,9 @@ WebGL not supported
     }
   }
 })
+const midi = require('./midi')({
+  regl
+})
 const palettesCSS = require('./palettes.json')
 const reglAnalyser = require('regl-audio/analyser')
 
@@ -26,7 +30,7 @@ const gamma = 2.2
 // const renderer = require('./react-diffuse')(regl)
 // const renderer = require('./tessellate')(regl)
 // const renderer = require('./terrain')(regl)
-const renderer = require('./particles')(regl)
+// const renderer = require('./particles')(regl)
 // const renderer = require('./polytope')(regl)
 // const renderer = require('./hexes')(regl)
 // const renderer = require('./dendrite')(regl)
@@ -34,8 +38,13 @@ const renderer = require('./particles')(regl)
 // const renderer = require('./ribbons')(regl)
 // const renderer = require('./gifs')(regl)
 // const renderer = require('./gif-mesh')(regl)
-// const renderer = require('./space-nav')(regl)
+// const renderer = require('./polkadots')(regl)
 // const renderer = require('./highways')(regl)
+// const renderer = require('./shadows')(regl)
+// const renderer = require('./torus')(regl)
+// const renderer = require('./barticles')(regl)
+// const renderer = require('./hawaii1')(regl)
+const renderer = require('./hawaii2')(regl, midi)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {
@@ -222,10 +231,13 @@ function setup (analyser, video) {
       const s = 2
       postFBO[0].resize(s * viewportWidth, s * viewportHeight)
       postFBO[1].resize(s * viewportWidth, s * viewportHeight)
-      microphone(() => {
-        basicSetup((context) => {
-          renderer.forward(context)
-          setupPostProcess(renderer.postprocess)
+      midi.setup(() => {
+        midi.tick()
+        microphone(() => {
+          basicSetup((context) => {
+            renderer.forward(context)
+            setupPostProcess(renderer.postprocess)
+          })
         })
       })
 

@@ -45,7 +45,6 @@ module.exports = function (regl) {
   })
 
   function forward (context) {
-    const
     setupCamera(
       [0, 0, -10],
       [0, 0, 0],
@@ -153,7 +152,9 @@ module.exports = function (regl) {
     count: function (_, {frame}) {
       const f = Math.floor(frame) % (this.frames.length - 1)
       return this.frames[f + 1] - this.frames[f]
-    }
+    },
+
+    primitive: 'lines'
   })
 
   function parseGIF (gifData) {

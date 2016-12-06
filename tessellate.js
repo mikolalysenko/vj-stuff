@@ -106,7 +106,7 @@ module.exports = function (regl) {
       position: regl.prop('position')
     },
 
-    lineWidth: 4,
+    lineWidth: 10,
 
     elements: regl.prop('cells')
   })

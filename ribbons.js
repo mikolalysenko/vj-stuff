@@ -102,7 +102,7 @@ module.exports = function (regl) {
     }
 
     const ribbonState = Array(2).fill().map(() =>
-      regl.fbo({
+      regl.framebuffer({
         color: regl.texture({
           shape: [256, 256, 4],
           data: ribbonData,
@@ -170,7 +170,7 @@ module.exports = function (regl) {
       }
 
       void main () {
-        gl_Position
+        gl_Position = fetch(uv);
       }
       `
     })
