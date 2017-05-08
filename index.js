@@ -26,7 +26,7 @@ const gamma = 2.2
 
 // const renderer = require('./cube')(regl)
 // const renderer = require('./video-mesh')(regl)
-// const renderer = require('./del-voro')(regl)
+const renderer = require('./del-voro')(regl)
 // const renderer = require('./react-diffuse')(regl)
 // const renderer = require('./tessellate')(regl)
 // const renderer = require('./terrain')(regl)
@@ -44,7 +44,7 @@ const gamma = 2.2
 // const renderer = require('./torus')(regl)
 // const renderer = require('./barticles')(regl)
 // const renderer = require('./hawaii1')(regl)
-const renderer = require('./hawaii2')(regl, midi)
+// const renderer = require('./hawaii2')(regl, midi)
 
 const palettes = palettesCSS.map((pal) => {
   return pal.map((hexStr) => {

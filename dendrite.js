@@ -255,7 +255,7 @@ module.exports = function (regl) {
         enable: false
       },
 
-      lineWidth: 8,
+      lineWidth: 1,
 
       count: regl.prop('vertexCount')
     })
